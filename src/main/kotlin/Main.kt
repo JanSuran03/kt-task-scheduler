@@ -7,6 +7,9 @@ fun main(args: Array<String>) {
     scheduler.schedule({ println("4s") }, 4000)
     scheduler.schedule({ println("1s") }, 1000)
     scheduler.schedule({ println("3s") }, 3000)
+    scheduler.scheduleInterval({println("500ms")}, 500)
     scheduler.start()
-    scheduler.waitBlocking()
+    Thread.sleep(8000)
+    scheduler.stop()
+    //scheduler.waitBlocking()
 }

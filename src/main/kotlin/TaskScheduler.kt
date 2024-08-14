@@ -3,13 +3,20 @@ import java.util.concurrent.CountDownLatch
 
 typealias Fn = () -> Unit
 
-data class Task(val f: Fn, val scheduledAt: Long) : Comparable<Task> {
-    override fun compareTo(other: Task): Int {
+data class Task(val f: Fn, val timeoutMillis: Long)
+
+data class TaskImpl(val task: Task, val scheduledAt: Long, val isInterval: Boolean) : Comparable<TaskImpl> {
+    override fun compareTo(other: TaskImpl): Int {
         return this.scheduledAt.compareTo(other.scheduledAt)
     }
 }
 
-val NULL_TASK = Task(scheduledAt = Long.MIN_VALUE, f = {})
+val NULL_TASK =
+    TaskImpl(
+        task = Task(f = {}, timeoutMillis = Long.MAX_VALUE),
+        scheduledAt = Long.MIN_VALUE,
+        isInterval = false
+    )
 
 class TaskScheduler {
     private var tasks = PriorityQueue(NULL_TASK)
@@ -29,8 +36,30 @@ class TaskScheduler {
 
     fun schedule(task: Fn, timeoutMillis: Long) {
         synchronized(tasks) {
-            tasks.insert(Task(task, System.currentTimeMillis() + timeoutMillis))
+            tasks.insert(
+                TaskImpl(
+                    Task(f = task, timeoutMillis = timeoutMillis),
+                    scheduledAt = System.currentTimeMillis() + timeoutMillis,
+                    isInterval = false
+                )
+            )
         }
+    }
+
+    fun scheduleInterval(task: Fn, timeoutMillis: Long) {
+        synchronized(tasks) {
+            tasks.insert(
+                TaskImpl(
+                    task = Task(f = task, timeoutMillis = timeoutMillis),
+                    scheduledAt = System.currentTimeMillis() + timeoutMillis,
+                    isInterval = true
+                )
+            )
+        }
+    }
+
+    fun rescheduleInterval(task: Task) {
+        scheduleInterval(task.f, task.timeoutMillis)
     }
 
     fun stop() {
@@ -72,7 +101,10 @@ class TaskScheduler {
                 }
             } else {
                 val task = tasks.extractMin()
-                task.f()
+                task.task.f()
+                if (task.isInterval) {
+                    rescheduleInterval(task.task)
+                }
             }
         }
     }
